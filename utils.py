@@ -49,3 +49,14 @@ def valida_se_arquivos_sao_jpg(path):
 #lista_de_arquivos = copia_todos_arquivos_para_pasta_temporaria("Fotos")
 lista_de_arquivos = "/home/felipe/workspace/appFotosGerbera/temp_633243"
 valida_se_arquivos_sao_jpg(lista_de_arquivos)
+
+def nome_arquivo_e_valido(string) :
+    """
+    Retorna se o nome do arquivo é válido contendo os caracteres -,.jpg,.JPG
+    :param string: nome do arquivo
+    :return: True or False
+    """
+    string = string.lower()
+    return not (not (string.find("-") >= 0) or not (string.find(",") >= 0) or not (
+    (string.find(".jpg") >= 0)))
+
