@@ -5,6 +5,8 @@ from collections import Counter
 import re
 import hashlib
 import fdb
+import sys
+from PIL import Image
 
 class BD:
 
@@ -156,6 +158,20 @@ class PreparaArqImportacao:
                     cod_nao_esta_no_BD.append(arquivo)
             return cod_nao_esta_no_BD
 
+class ManipulacaoImagensUtils():
+
+    def __init__(self):
+        pass
+
+    def compressJPG(this,pathfolder,file,verbose=False) :
+        os.chdir(pathfolder)
+        filepath = pathfolder+"/"+file
+        picture = Image.open(filepath)
+        picture = picture.resize((1414, 1414))
+        picture.save("Compressed_" + file, "JPEG", optimize=True, quality=15,)
+
+
+
 importacao = PreparaArqImportacao()
 importacao.cria_estrutura_de_pastas()
 importacao.copia_arquivos_a_serem_importados(importacao.folder_a_ser_importada,
@@ -177,7 +193,10 @@ for arquivo in arquivos_nao_estao_no_BD:
     importacao.mover_arquivo_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao,
                                           importacao.path_folder_pendencias_cod_ref_nao_encontrada,
                                           arquivo)
-
+arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
+comprimeImagem = ManipulacaoImagensUtils()
+for arquivo in arquivos:
+    comprimeImagem.compressJPG(importacao.path_folder_arq_pendentes_verificacao,arquivo)
 
 
 
