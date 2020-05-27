@@ -7,6 +7,7 @@ import hashlib
 import fdb
 import sys
 from PIL import Image
+from pathlib import Path
 
 class BD:
 
@@ -36,7 +37,8 @@ class BD:
 class PreparaArqImportacao:
 
     def __init__(self):
-        self.folder_a_ser_importada = "Fotos"
+        #self.folder_a_ser_importada = "/home/felipe/workspace/appFotosGerbera/Fotos"
+        self.folder_a_ser_importada = "/home/felipe/felipepagliuco@gmail.com/GerberaAcessorios/Fotos Peças"
         self.diretorio_temporario = None
         self.path_folder_conformes = None
         self.path_folder_arq_pendentes_verificacao = None
@@ -77,7 +79,7 @@ class PreparaArqImportacao:
         os.scandir().close()
         return arquivos
 
-    def copia_arquivos_a_serem_importados(self,folder_origem,folder_destino) :
+    def copia_arquivos_a_serem_importados(self,folder_origem,folder_destino,path_arquivos_duplicados) :
         """
         Percorre todas as pastas e sub pastas e copia todos os arquivos
         Para a pasta : arquivos_pendentes_verificacao
@@ -88,10 +90,15 @@ class PreparaArqImportacao:
             with os.scandir(dirpath) as it :
                 for entry in it :
                     if entry.is_file() :
-                        arquivos_encontrados.append(entry.name)
-                        old_file_path = os.path.join(dirpath, entry.name)
-                        shutil.copy(old_file_path,folder_destino)
-                        print   ("Copiando arquivo.....", entry.name)
+                        if Path(folder_destino + "/" + entry.name).is_file() :
+                            print("Arquivo Duplicado: " + str(os.path.join(dirpath, entry.name)))
+                            old_file_path = os.path.join(dirpath, entry.name)
+                            shutil.copy(old_file_path, path_arquivos_duplicados)
+                        else :
+                            arquivos_encontrados.append(entry.name)
+                            old_file_path = os.path.join(dirpath, entry.name)
+                            shutil.copy(old_file_path, folder_destino)
+                            print("Copiando arquivo.....", entry.name)
         os.scandir().close()
 
         print("Total de arquivos encontrados: ", len(arquivos_encontrados))
@@ -175,7 +182,8 @@ class ManipulacaoImagensUtils():
 importacao = PreparaArqImportacao()
 importacao.cria_estrutura_de_pastas()
 importacao.copia_arquivos_a_serem_importados(importacao.folder_a_ser_importada,
-                                             importacao.path_folder_arq_pendentes_verificacao)
+                                             importacao.path_folder_arq_pendentes_verificacao,
+                                             importacao.path_folder_pendencias_arquivo_duplicado)
 arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
 
 for arquivo in arquivos:
@@ -193,10 +201,10 @@ for arquivo in arquivos_nao_estao_no_BD:
     importacao.mover_arquivo_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao,
                                           importacao.path_folder_pendencias_cod_ref_nao_encontrada,
                                           arquivo)
-arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
-comprimeImagem = ManipulacaoImagensUtils()
-for arquivo in arquivos:
-    comprimeImagem.compressJPG(importacao.path_folder_arq_pendentes_verificacao,arquivo)
+# arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
+# comprimeImagem = ManipulacaoImagensUtils()
+# for arquivo in arquivos:
+#     comprimeImagem.compressJPG(importacao.path_folder_arq_pendentes_verificacao,arquivo)
 
 
 
