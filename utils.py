@@ -5,9 +5,9 @@ from collections import Counter
 import re
 import hashlib
 import fdb
-import sys
 from PIL import Image
 from pathlib import Path
+import S3_Utils
 
 class BD:
 
@@ -38,7 +38,7 @@ class PreparaArqImportacao:
 
     def __init__(self):
         #self.folder_a_ser_importada = "/home/felipe/workspace/appFotosGerbera/Fotos"
-        self.folder_a_ser_importada = "/home/felipe/felipepagliuco@gmail.com/GerberaAcessorios/Fotos Peças"
+        self.folder_a_ser_importada = "/home/felipe/workspace/appFotosGerbera/Fotos"
         self.diretorio_temporario = None
         self.path_folder_conformes = None
         self.path_folder_arq_pendentes_verificacao = None
@@ -170,7 +170,7 @@ class ManipulacaoImagensUtils():
     def __init__(self):
         pass
 
-    def compressJPG(this,pathfolder,file,verbose=False) :
+    def compressJPG(self,pathfolder,file,verbose=False) :
         os.chdir(pathfolder)
         filepath = pathfolder+"/"+file
         picture = Image.open(filepath)
@@ -201,11 +201,23 @@ for arquivo in arquivos_nao_estao_no_BD:
     importacao.mover_arquivo_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao,
                                           importacao.path_folder_pendencias_cod_ref_nao_encontrada,
                                           arquivo)
-# arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
-# comprimeImagem = ManipulacaoImagensUtils()
-# for arquivo in arquivos:
-#     comprimeImagem.compressJPG(importacao.path_folder_arq_pendentes_verificacao,arquivo)
-
+#Comprime todas a imagens que estão conforme
+arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
+comprimeImagem = ManipulacaoImagensUtils()
+for arquivo in arquivos:
+    comprimeImagem.compressJPG(importacao.path_folder_arq_pendentes_verificacao,arquivo)
+##Move os arquivos conformes para a pasta conformes
+arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
+for arquivo in arquivos:
+    importacao.mover_arquivo_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao,
+                                          importacao.path_folder_conformes,
+                                          arquivo)
+#Envia os arquivos conforme para o S3
+arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_conformes)
+s3 = S3_Utils()
+for arquivo in arquivos:
+    file_abs = importacao.path_folder_conformes+'/'+arquivo
+    s3.upload_file(file_abs,'gerbera')
 
 
 
