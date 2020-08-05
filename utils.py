@@ -4,40 +4,14 @@ import shutil
 from collections import Counter
 import re
 import hashlib
-import fdb
 from PIL import Image
 from pathlib import Path
-import S3_Utils
-
-class BD:
-
-    def __init__(self):
-        self.con=None
-
-    def __enter__(self):
-        self.con = fdb.connect(dsn='localhost/3050:/home/felipe/workspace/appFotosGerbera/BD/arqccs.fdb',
-                               user='SYSDBA',
-                               password='masterkey')
-        return self
-
-    def __exit__(self, exception_type, exception_value, traceback):
-        self.con.close()
-
-    def executeSQL(self,sql):
-        # Create a Cursor object that operates in the context of Connection con:
-        try:
-            self.cur = self.con.cursor()
-            return self.cur.execute(sql)
-        finally:
-            self.con.cursor().close()
-
-    def retorna_bd(self):
-        print(self.con.database_name)
+from S3_Utils import S3Utils
+from conexoesBD import conexaoFirebird, conexaoPostgresRDS
 
 class PreparaArqImportacao:
 
     def __init__(self):
-        #self.folder_a_ser_importada = "/home/felipe/workspace/appFotosGerbera/Fotos"
         self.folder_a_ser_importada = "/home/felipe/workspace/appFotosGerbera/Fotos"
         self.diretorio_temporario = None
         self.path_folder_conformes = None
@@ -151,19 +125,17 @@ class PreparaArqImportacao:
             lista_codigos.append(self.retorna_cod_produto_do_nome_do_arquivo(nome_arquivo))
         return lista_codigos
 
-
-    def __codigo_esta_no_bd_de_dados(self,conexao,cod_produto):
-        sql = "select REFERENCIA from PRODUTO where REFERENCIA = '%s'" % cod_produto
-        return conexao.executeSQL(sql).fetchonemap() is not None
-
-    def verifica_se_cod_produto_esta_no_BD(self,arquivos):
-        with BD() as conexao:
-            cod_nao_esta_no_BD = []
-            for arquivo in arquivos:
-                if not self.__codigo_esta_no_bd_de_dados(conexao,
-                                                         self.retorna_cod_produto_do_nome_do_arquivo(arquivo)):
-                    cod_nao_esta_no_BD.append(arquivo)
-            return cod_nao_esta_no_BD
+    def produtos_nao_cadastrados(self, arquivos):
+        produtos_nao_cadastrados = []
+        with conexaoPostgresRDS() as conexao :
+            for arquivo in arquivos :
+                codigo_produto = self.retorna_cod_produto_do_nome_do_arquivo(arquivo)
+                sql = "select codigo from produtos_produto where codigo = '%s'" % codigo_produto
+                parametros = ""
+                conexao.query(sql, parametros)
+                if not conexao.retorna_todos_registros() :
+                    produtos_nao_cadastrados.append(arquivo)
+        return produtos_nao_cadastrados
 
 class ManipulacaoImagensUtils():
 
@@ -178,46 +150,49 @@ class ManipulacaoImagensUtils():
         picture.save("Compressed_" + file, "JPEG", optimize=True, quality=15,)
 
 
+def upload_images():
 
-importacao = PreparaArqImportacao()
-importacao.cria_estrutura_de_pastas()
-importacao.copia_arquivos_a_serem_importados(importacao.folder_a_ser_importada,
-                                             importacao.path_folder_arq_pendentes_verificacao,
-                                             importacao.path_folder_pendencias_arquivo_duplicado)
-arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
+    importacao = PreparaArqImportacao()
+    importacao.cria_estrutura_de_pastas()
+    importacao.copia_arquivos_a_serem_importados(importacao.folder_a_ser_importada,
+                                                 importacao.path_folder_arq_pendentes_verificacao,
+                                                 importacao.path_folder_pendencias_arquivo_duplicado)
+    arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
 
-for arquivo in arquivos:
-    if not importacao.nome_arquivo_e_valido(arquivo):
+    for arquivo in arquivos:
+        if not importacao.nome_arquivo_e_valido(arquivo):
+            importacao.mover_arquivo_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao,
+                                                  importacao.path_folder_pendencias_nome_arquivo_invalido,
+                                                  arquivo)
+        elif not importacao.arquivos_sao_jpg(arquivo):
+            importacao.mover_arquivo_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao,
+                                                  importacao.path_folder_pendencias_tipo_arquivo_invalido,
+                                                  arquivo)
+    arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
+    arquivos_nao_estao_no_BD = importacao.produtos_nao_cadastrados(arquivos)
+    for arquivo in arquivos_nao_estao_no_BD:
         importacao.mover_arquivo_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao,
-                                              importacao.path_folder_pendencias_nome_arquivo_invalido,
+                                              importacao.path_folder_pendencias_cod_ref_nao_encontrada,
                                               arquivo)
-    elif not importacao.arquivos_sao_jpg(arquivo):
+    #Comprime todas a imagens que estão conforme
+    arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
+    comprimeImagem = ManipulacaoImagensUtils()
+    for arquivo in arquivos:
+        comprimeImagem.compressJPG(importacao.path_folder_arq_pendentes_verificacao,arquivo)
+    ##Move os arquivos conformes para a pasta conformes
+    arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
+    for arquivo in arquivos:
         importacao.mover_arquivo_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao,
-                                              importacao.path_folder_pendencias_tipo_arquivo_invalido,
+                                              importacao.path_folder_conformes,
                                               arquivo)
-arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
-arquivos_nao_estao_no_BD = importacao.verifica_se_cod_produto_esta_no_BD(arquivos)
-for arquivo in arquivos_nao_estao_no_BD:
-    importacao.mover_arquivo_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao,
-                                          importacao.path_folder_pendencias_cod_ref_nao_encontrada,
-                                          arquivo)
-#Comprime todas a imagens que estão conforme
-arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
-comprimeImagem = ManipulacaoImagensUtils()
-for arquivo in arquivos:
-    comprimeImagem.compressJPG(importacao.path_folder_arq_pendentes_verificacao,arquivo)
-##Move os arquivos conformes para a pasta conformes
-arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao)
-for arquivo in arquivos:
-    importacao.mover_arquivo_de_uma_pasta(importacao.path_folder_arq_pendentes_verificacao,
-                                          importacao.path_folder_conformes,
-                                          arquivo)
-#Envia os arquivos conforme para o S3
-arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_conformes)
-s3 = S3_Utils()
-for arquivo in arquivos:
-    file_abs = importacao.path_folder_conformes+'/'+arquivo
-    s3.upload_file(file_abs,'gerbera')
+    #Envia os arquivos conforme para o S3
+    arquivos = importacao.lista_arquivos_de_uma_pasta(importacao.path_folder_conformes)
+    s3 = S3Utils()
+    for arquivo in arquivos:
+        file_abs = importacao.path_folder_conformes+'/'+arquivo
+        s3.upload_file(file_abs,'gerbera','fotos/'+arquivo)
+
+
 
 
 

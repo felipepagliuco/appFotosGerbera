@@ -70,7 +70,7 @@ class SincronizaFornecedores :
                 self.insere_fornecedor(codigo, nome)
             else :
                 self.atualiza_fornecedor(codigo, nome)
-        print('Sincronização de Peças finalizada com sucesso!')
+        print('Sincronização de Fornecedores finalizada com sucesso!')
 
 
 # Tenho que fazer quando o fornecedor não está mais na tabela temporaria setar para ativo = false
@@ -165,8 +165,14 @@ class SincronizaProdutos :
             instrucao_sql = ("SELECT REFERENCIA,CODGRUPO,CODSUBGRUPO,DATACADASTRO,DATAALTERACAO FROM PRODUTO")
             return conexao_firebird.executeSQL(instrucao_sql).fetchall()
 
+    def busca_todos_produtos_cadastrados_temp_produto_postgres(self) :
+        with conexaoPostgresRDS() as conexao :
+            instrucao_sql = ("SELECT codigo, fornecedor, peca, data_cadastro, data_alteracao FROM public.temp_produto;")
+            parametros = ""
+            conexao.query(instrucao_sql, parametros)
+            return conexao.retorna_todos_registros()
+
     def carrega_produtos_para_a_tabela_temporaria(self,produtos) :
-        #produtos = self.busca_todos_produtos_cadastrados_firebird()
         with conexaoPostgresRDS() as conexao :
             for codigo, fornecedor, peca, data_cadastro, data_alteracao in produtos :
                 parametros = codigo, fornecedor, peca, data_cadastro, data_alteracao
@@ -188,11 +194,11 @@ class SincronizaProdutos :
             conexao.query(instrucao_sql, parametros)
             return conexao.retorna_todos_registros()
 
-    def insere_todos_os_produtos_da_tabela_temporaria(self) :
-        produtos_temp = self.retorna_ids_de_fornecedor_e_peca_das_tabelas_do_postgres()
+    def insere_todos_os_produtos_da_tabela_temporaria(self,produtos) :
+        #produtos_temp = self.retorna_ids_de_fornecedor_e_peca_das_tabelas_do_postgres()
         with conexaoPostgresRDS() as conexao :
             sql = u"INSERT INTO public.produtos_produto (data_criacao, data_alteracao, ativo, codigo, fornecedor_id, peca_id) VALUES(%s,%s,%s,%s,%s,%s);"
-            for codigo, fornecedor_id, peca_id in produtos_temp :
+            for codigo, fornecedor_id, peca_id in produtos:
                 parametros = '2020-07-28', '2020-07-28', True, codigo, fornecedor_id, peca_id
                 conexao.query(sql, parametros)
 
@@ -257,12 +263,43 @@ class SincronizaProdutos :
                              "OR DATACADASTRO >'%s'") % (str(data_alteracao), str(data_cadastro))
             return conexao_firebird.executeSQL(instrucao_sql).fetchall()
 
+    def produto_cadastrado(self,codigo_produto):
+        with conexaoPostgresRDS() as conexao :
+            instrucao_sql = "SELECT * FROM produtos_produto WHERE codigo = '%s';" %str(codigo_produto)
+            parametro = ''
+            conexao.query(instrucao_sql, parametro)
+            return conexao.retorna_todos_registros()
+
     def realiza_carga_total(self) :
         print("Carga Total de Produtos será realizada...")
         self.limpa_tabela_temporaria_produto()
         self.carrega_produtos_para_a_tabela_temporaria(self.busca_todos_produtos_cadastrados_firebird())
-        self.insere_todos_os_produtos_da_tabela_temporaria()
+        self.insere_todos_os_produtos_da_tabela_temporaria(self.retorna_ids_de_fornecedor_e_peca_das_tabelas_do_postgres())
         print("Carga Total de Produtos Finalizada")
+
+    def insere_um_produto(self,codigo, fornecedor_id, peca_id):
+        with conexaoPostgresRDS() as conexao :
+            sql = u"INSERT INTO public.produtos_produto (data_criacao, data_alteracao, ativo, codigo, fornecedor_id, peca_id) VALUES(%s,%s,%s,%s,%s,%s);"
+            parametros = '2020-07-28', '2020-07-28', True, codigo, fornecedor_id, peca_id
+            conexao.query(sql, parametros)
+
+    def atualiza_um_produto(self,codigo, fornecedor_id, peca_id) :
+        with conexaoPostgresRDS() as conexao :
+            sql = u"UPDATE public.produtos_produto SET data_alteracao= %s, fornecedor_id= %s,peca_id = %s WHERE codigo = %s"
+            parametros = '2020-07-15', fornecedor_id, peca_id,codigo
+            conexao.query(sql, parametros)
+
+    def sincroniza_somente_ultimos_registros_alterados(self):
+        print('-- Produtos a serem atualizados -- ')
+        self.limpa_tabela_temporaria_produto()
+        self.carrega_produtos_para_a_tabela_temporaria(self.produtos_a_serem_atualizados_ou_inseridos())
+        for codigo, fornecedor_id, peca_id in self.retorna_ids_de_fornecedor_e_peca_das_tabelas_do_postgres() :
+            if self.produto_cadastrado(codigo) :
+                self.atualiza_um_produto(codigo, fornecedor_id, peca_id)
+            else :
+                self.insere_um_produto(codigo, fornecedor_id, peca_id)
+        print('-- Produtos Atualizados com Sucesso! --')
+
 
     def sincroniza_produtos(self) :
         print('Iniciando Sincronização de Produtos')
@@ -270,20 +307,13 @@ class SincronizaProdutos :
             self.realiza_carga_total()
         else :
             if self.produtos_a_serem_atualizados_ou_inseridos() :
-                print('Produtos a serem atualizados:')
-                self.limpa_tabela_temporaria_produto()
-                self.carrega_produtos_para_a_tabela_temporaria(self.produtos_a_serem_atualizados_ou_inseridos())
+                self.sincroniza_somente_ultimos_registros_alterados()
 
 
 
+sincPecas = SincronizaPecas()
+sinFornecedores = SincronizaFornecedores()
+sincPecas.sincroniza_pecas()
+sinFornecedores.sincroniza_fornecedores()
 sincProdutos = SincronizaProdutos()
 sincProdutos.sincroniza_produtos()
-print(sincProdutos.produtos_a_serem_atualizados_ou_inseridos())
-# datas = sincProdutos.retorna_maior_data_de_criacao_e_atualizacao_de_produto()
-# data_cria,data_alt = datas[0]
-# print(data_cria)
-# for data_cri, data_alt in datas:
-#     print(data_cri)
-#     print(data_alt)
-
-# print(sincProdutos.produtos_a_serem_atualizados_ou_inseridos())
