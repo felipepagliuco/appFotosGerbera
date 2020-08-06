@@ -1,11 +1,19 @@
 import logging
 import boto3
+
 from botocore.exceptions import ClientError
+from constantes import *
 
 class S3Utils():
 
     def __init__(self):
-        self.s3 = boto3.resource('s3')
+        #self.s3 = boto3.resource('s3')
+
+        self.s3 = boto3.resource('s3',
+            aws_access_key_id = AWS_ACCESS_KEY_ID,
+            aws_secret_access_key = AWS_SECRET_ACCESS_KEY
+        )
+
         self.s3_client = boto3.client('s3')
 
     def upload_file(self,file_name, bucket, object_name=None):
@@ -45,3 +53,6 @@ class S3Utils():
             for obj in bucket.objects.filter(Prefix='fotos/'):
                 print('{0}'.format(obj.key))
 
+s3 = S3Utils()
+s3.list_chaves_de_um_prefixo()
+s3.retorne_TagObjeto()

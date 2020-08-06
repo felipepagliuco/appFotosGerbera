@@ -6,40 +6,40 @@ class SincronizaFornecedores :
     def __init__(self) :
         pass
 
-    def limpa_tabela_temporaria_fornecedores(self) :
-        with conexaoPostgresRDS() as conexao :
+    def limpa_tabela_temporaria_fornecedores(self):
+        with conexaoPostgresRDS() as conexao:
             sql = u"DELETE FROM public.temp_fornecedor"
             parametros = ''
             conexao.query(sql, parametros)
 
-    def busca_codigo_e_descricao_fornecedores_bd_firebird(self) :
-        with conexaoFirebird() as conexao_firebird :
+    def busca_codigo_e_descricao_fornecedores_bd_firebird(self):
+        with conexaoFirebird() as conexao_firebird:
             instrucao_sql = ("SELECT CODGRUPO,DESCRICAO FROM GRUPO WHERE DESCRICAO IS NOT NULL ORDER BY CODGRUPO")
             return conexao_firebird.executeSQL(instrucao_sql).fetchall()
 
-    def carrega_fornecedores_para_a_tabela_temporaria(self) :
+    def carrega_fornecedores_para_a_tabela_temporaria(self):
         fornecedores = dict(self.busca_codigo_e_descricao_fornecedores_bd_firebird())
-        with conexaoPostgresRDS() as conexao :
+        with conexaoPostgresRDS() as conexao:
             sql = u"INSERT INTO public.temp_fornecedor(codigo, nome) VALUES (%s,%s);"
-            for codigo, nome in fornecedores.items() :
+            for codigo, nome in fornecedores.items():
                 parametros = codigo, nome
                 conexao.query(sql, parametros)
 
-    def codigo_fornecedor_nao_cadastrado(self, cod_fornecedor) :
-        with conexaoPostgresRDS() as conexao :
+    def codigo_fornecedor_nao_cadastrado(self, cod_fornecedor):
+        with conexaoPostgresRDS() as conexao:
             instrucao_sql = "SELECT * FROM produtos_fornecedor WHERE codigo = '%s';"
             parametro = cod_fornecedor,
             conexao.query(instrucao_sql, parametro)
             return not conexao.retorna_todos_registros()
 
-    def insere_fornecedor(self, codigo, nome) :
-        with conexaoPostgresRDS() as conexao :
+    def insere_fornecedor(self, codigo, nome):
+        with conexaoPostgresRDS() as conexao:
             sql = u"INSERT INTO public.produtos_fornecedor (data_criacao, data_alteracao, ativo,codigo,nome) VALUES (%s,%s,%s,%s,%s);"
             parametros = '2020-07-13', '2020-07-13', True, codigo, nome
             conexao.query(sql, parametros)
 
-    def registros_de_fornecedores_diferentes_tabela_temporaria_e_fornecedor(self) :
-        with conexaoPostgresRDS() as conexao :
+    def registros_de_fornecedores_diferentes_tabela_temporaria_e_fornecedor(self):
+        with conexaoPostgresRDS() as conexao:
             instrucao_sql = ("SELECT\n" +
                              "TEMPFORN.CODIGO,\n" +
                              "TEMPFORN.NOME\n" +
@@ -54,68 +54,68 @@ class SincronizaFornecedores :
             conexao.query(instrucao_sql, parametros)
             return conexao.retorna_todos_registros()
 
-    def atualiza_fornecedor(self, codigo, nome) :
-        with conexaoPostgresRDS() as conexao :
+    def atualiza_fornecedor(self, codigo, nome):
+        with conexaoPostgresRDS() as conexao:
             sql = u"UPDATE public.produtos_fornecedor SET data_alteracao= %s, nome= %s WHERE codigo = %s"
             parametros = '2020-07-13', nome, codigo
             conexao.query(sql, parametros)
 
-    def sincroniza_fornecedores(self) :
+    def sincroniza_fornecedores(self):
         print('Iniciando Sincronização de Fornecedores')
         self.limpa_tabela_temporaria_fornecedores()
         self.carrega_fornecedores_para_a_tabela_temporaria()
         fornecedores_divergentes = dict(self.registros_de_fornecedores_diferentes_tabela_temporaria_e_fornecedor())
-        for codigo, nome in fornecedores_divergentes.items() :
-            if self.codigo_fornecedor_nao_cadastrado(int(codigo)) :
+        for codigo, nome in fornecedores_divergentes.items():
+            if self.codigo_fornecedor_nao_cadastrado(int(codigo)):
                 self.insere_fornecedor(codigo, nome)
-            else :
+            else:
                 self.atualiza_fornecedor(codigo, nome)
         print('Sincronização de Fornecedores finalizada com sucesso!')
 
 
 # Tenho que fazer quando o fornecedor não está mais na tabela temporaria setar para ativo = false
 
-class SincronizaPecas :
+class SincronizaPecas:
 
-    def __init__(self) :
+    def __init__(self):
         pass
 
-    def limpa_tabela_temporaria_pecas(self) :
-        with conexaoPostgresRDS() as conexao :
+    def limpa_tabela_temporaria_pecas(self):
+        with conexaoPostgresRDS() as conexao:
             sql = u"DELETE FROM public.temp_peca"
             parametros = ''
             conexao.query(sql, parametros)
 
-    def busca_cod_descricao_tipos_de_peca_bd_firebird(self) :
-        with conexaoFirebird() as conexao_firebird :
+    def busca_cod_descricao_tipos_de_peca_bd_firebird(self):
+        with conexaoFirebird() as conexao_firebird:
             instrucao_sql = ("SELECT CODSUBGRUPO,DESCRICAO FROM SUBGRUPO "
                              "WHERE DESCRICAO IS NOT NULL ORDER BY CODSUBGRUPO")
             return conexao_firebird.executeSQL(instrucao_sql).fetchall()
 
-    def carrega_pecas_para_a_tabela_temporaria(self) :
+    def carrega_pecas_para_a_tabela_temporaria(self):
         pecas = dict(self.busca_cod_descricao_tipos_de_peca_bd_firebird())
-        with conexaoPostgresRDS() as conexao :
+        with conexaoPostgresRDS() as conexao:
             sql = u"INSERT INTO public.temp_peca(codigo, nome) VALUES (%s,%s);"
-            for codigo, nome in pecas.items() :
+            for codigo, nome in pecas.items():
                 parametros = codigo, nome
                 conexao.query(sql, parametros)
 
-    def codigo_peca_nao_cadastrado(self, cod_peca) :
-        with conexaoPostgresRDS() as conexao :
+    def codigo_peca_nao_cadastrado(self, cod_peca):
+        with conexaoPostgresRDS() as conexao:
             instrucao_sql = "SELECT * FROM produtos_peca WHERE codigo = '%s';"
             parametro = cod_peca,
             conexao.query(instrucao_sql, parametro)
             return not conexao.retorna_todos_registros()
 
-    def insere_peca(self, codigo, nome) :
-        with conexaoPostgresRDS() as conexao :
+    def insere_peca(self, codigo, nome):
+        with conexaoPostgresRDS() as conexao:
             sql = u"INSERT INTO public.produtos_peca (data_criacao, data_alteracao, ativo,codigo,nome) VALUES (%s,%s,%s,%s,%s);"
             parametros = '2020-07-15', '2020-07-15', True, codigo, nome
             conexao.query(sql, parametros)
 
     # busca_registros divergentes
-    def busca_registros_de_pecas_divergentes(self) :
-        with conexaoPostgresRDS() as conexao :
+    def busca_registros_de_pecas_divergentes(self):
+        with conexaoPostgresRDS() as conexao:
             instrucao_sql = ("select\n" +
                              "tpeca.codigo,\n" +
                              "tpeca.nome\n" +
